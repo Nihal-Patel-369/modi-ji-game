@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modi Flappy Adventure</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #333;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden; /* स्क्रॉलिंग बंद करें */
+        }
+
+        canvas {
+            border: 2px solid #000;
+            box-shadow: 0px 0px 20px rgba(0,0,0,0.5);
+            background-color: #70c5ce; /* आकाश का रंग */
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<img id="modiFaceBtn" src="modi.png" style="display:none;">
+<audio id="bgMusic" src="bg_music.mp3" loop preload="auto"></audio>
+<audio id="gameOverSound" src="gameover.mp3" preload="auto"></audio>
+
+<script>
+    // --- सेटअप ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // कैनवास का साइज सेट करें (मोबाइल रिस्पॉन्सिव)
+    canvas.width = 320;
+    canvas.height = 480;
+
+    // --- एसेट्स लोड करना (Assets Loading) ---
+    const modiImg = document.getElementById('modiFaceBtn');
+    const bgMusic = document.getElementById('bgMusic');
+    const gameOverSound = document.getElementById('gameOverSound');
+    
+    // वॉल्यूम सेटिंग्स (वैकल्पिक)
+    bgMusic.volume = 0.5; 
+    gameOverSound.volume = 1.0;
+
+    // --- गेम वैरिएबल्स (Game Variables) ---
+    let frames = 0;
+    let score = 0;
+    let highScore = localStorage.getItem('modiHighScore') || 0;
+    let gameState = {
+        current: 0,
+        getReady: 0,
+        game: 1,
+        over: 2
+    };
+
+    // --- मोदी जी ऑब्जेक्ट (The Player) ---
+    const modi = {
+        x: 50,
+        y: 150,
+        width: 34,  // इमेज के हिसाब से एडजस्ट करें
+        height: 24, // इमेज के हिसाब से एडजस्ट करें
+        gravity: 0.25,
+        jump: 4.6,
+        velocity: 0,
+        radius: 12, // कोलिजन के लिए गोल आकार
+
+        draw: function() {
+            // अगर इमेज लोड नहीं हुई है तो एक लाल डिब्बा बनाएँ
+            if (modiImg.complete && modiImg.naturalHeight !== 0) {
+                 ctx.drawImage(modiImg, this.x, this.y, this.width, this.height);
+            } else {
+                ctx.fillStyle = "red";
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+           
+        },
+
+        update: function() {
+            // अगर गेम 'getReady' स्टेट में है तो कुछ न करें
+            if (gameState.current !== gameState.game) return;
+
+            this.velocity += this.gravity;
+            this.y += this.velocity;
+
+            // जमीन से टकराना
+            if (this.y + this.height >= canvas.height - fg.height) {
+                this.y = canvas.height - fg.height - this.height;
+                endGame();
+            }
+            // छत से टकराना
+            if (this.y < 0) {
+                this.y = 0;
+                this.velocity = 0;
+            }
+        },
+
+        flap: function() {
+            this.velocity = -this.jump;
+        }
+    };
+
+    // --- बैकग्राउंड और जमीन (Background & Foreground) ---
+    const bg = {
+        draw: function() {
+            ctx.fillStyle = "#70c5ce";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+    };
+
+    const fg = {
+        height: 112,
+        x: 0,
+        draw: function() {
+            ctx.fillStyle = "#ded895";
+            ctx.fillRect(this.x, canvas.height - this.height, canvas.width, this.height);
+            ctx.fillRect(this.x + canvas.width, canvas.height - this.height, canvas.width, this.height);
+            
+            // ऊपर घास की हरी पट्टी
+            ctx.fillStyle = "#73bf2e";
+             ctx.fillRect(this.x, canvas.height - this.height, canvas.width, 12);
+             ctx.fillRect(this.x + canvas.width, canvas.height - this.height, canvas.width, 12);
+        },
+        update: function() {
+            this.x = (this.x - 2) % (canvas.width);
+        }
+    };
+
+    // --- पाइप्स (Pipes) ---
+    const pipes = {
+        position: [],
+        width: 52,
+        gap: 120, // ऊपर और नीचे के पाइप के बीच की जगह
+        minHeight: 50,
+        maxY: canvas.height - fg.height - 120 - 50, // गणित पाइप की पोजीशन के लिए
+        dx: 2, // पाइप की स्पीड
+
+        draw: function() {
+            for(let i = 0; i < this.position.length; i++) {
+                let p = this.position[i];
+                let topY = p.y;
+                let bottomY = p.y + this.gap;
+
+                ctx.fillStyle = "#73bf2e"; // पाइप का रंग हरा
+                
+                // ऊपर वाला पाइप
+                ctx.fillRect(p.x, 0, this.width, topY);
+                ctx.strokeStyle = "#558c22";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(p.x, 0, this.width, topY);
+                
+                // नीचे वाला पाइप
+                ctx.fillRect(p.x, bottomY, this.width, canvas.height - bottomY - fg.height);
+                ctx.strokeRect(p.x, bottomY, this.width, canvas.height - bottomY - fg.height);
+            }
+        },
+
+        update: function() {
+            if (gameState.current !== gameState.game) return;
+
+            // हर 150 फ्रेम पर नया पाइप जोड़ें
+            if (frames % 150 === 0) {
+                this.position.push({
+                    x: canvas.width,
+                    y: Math.random() * this.maxY + this.minHeight
+                });
+            }
+
+            for(let i = 0; i < this.position.length; i++) {
+                let p = this.position[i];
+                
+                // पाइप को बाईं ओर ले जाएँ
+                p.x -= this.dx;
+                
+                let bottomPipeYPos = p.y + this.gap;
+
+                // --- टकराव का पता लगाना (Collision Detection) ---
+                // ऊपर वाला पाइप
+                if (modi.x + modi.width > p.x && modi.x < p.x + this.width && modi.y < p.y) {
+                    endGame();
+                }
+                // नीचे वाला पाइप
+                if (modi.x + modi.width > p.x && modi.x < p.x + this.width && modi.y + modi.height > bottomPipeYPos) {
+                    endGame();
+                }
+
+                // अगर पाइप स्क्रीन से बाहर चला गया, तो उसे हटा दें
+                if (p.x + this.width <= 0) {
+                    this.position.shift();
+                    
+                    score++;
+                    highScore = Math.max(score, highScore);
+                    localStorage.setItem('modiHighScore', highScore);
+                    i--; 
+                }
+            }
+        },
+        reset: function() {
+            this.position = [];
+        }
+    };
+
+    function drawScore() {
+        ctx.fillStyle = "#FFF";
+        ctx.strokeStyle = "#000";
+        
+        if (gameState.current == gameState.game) {
+            ctx.lineWidth = 2;
+            ctx.font = "35px Impact";
+            ctx.fillText(score, canvas.width/2 - 10, 50);
+            ctx.strokeText(score, canvas.width/2 - 10, 50);
+        } else if (gameState.current == gameState.over) {
+             // गेम ओवर स्क्रीन
+             ctx.fillStyle = "rgba(0,0,0,0.5)";
+             ctx.fillRect(0,0,canvas.width, canvas.height);
+
+             ctx.fillStyle = "#FFF";
+             ctx.strokeStyle = "#000";
+             ctx.lineWidth = 2;
+             ctx.font = "40px Impact";
+             ctx.fillText("GAME OVER", 70, 150);
+             ctx.strokeText("GAME OVER", 70, 150);
+
+             ctx.font = "25px Impact";
+             ctx.fillText("Score: " + score, 110, 220);
+             ctx.fillText("Best: " + highScore, 115, 260);
+             
+             ctx.font = "20px Arial";
+             ctx.fillText("Tap to Restart", 100, 320);
+        } else if (gameState.current == gameState.getReady) {
+             ctx.fillStyle = "#FFF";
+             ctx.strokeStyle = "#000";
+             ctx.lineWidth = 2;
+             ctx.font = "30px Impact";
+             ctx.fillText("TAP TO START", 85, 200);
+             ctx.strokeText("TAP TO START", 85, 200);
+             ctx.font = "20px Arial";
+             ctx.fillText("Mitron, uddne ke liye tap karein!", 30, 250);
+        }
+    }
+
+
+    
+    function endGame() {
+        gameState.current = gameState.over;
+        bgMusic.pause();
+        bgMusic.currentTime = 0;
+        gameOverSound.play();
+    }
+
+    function resetGame() {
+        modi.y = 150;
+        modi.velocity = 0;
+        pipes.reset();
+        score = 0;
+        gameState.current = gameState.getReady;
+    }
+
+    function handleInput(e) {
+        if (bgMusic.paused && gameState.current === gameState.game) {
+             bgMusic.play().catch(e => console.log("Audio play failed:", e));
+        }
+
+        switch(gameState.current) {
+            case gameState.getReady:
+                gameState.current = gameState.game;
+                bgMusic.play(); // गेम शुरू होते ही गाना बजाएं
+                modi.flap();
+                break;
+            case gameState.game:
+                modi.flap();
+                break;
+            case gameState.over:
+                resetGame();
+                break;
+        }
+    }
+
+    canvas.addEventListener("click", handleInput);
+    window.addEventListener("keydown", function(e){
+        if(e.code === 'Space') handleInput(e);
+    });
+
+
+    
+    function loop() {
+        modi.update();
+        fg.update();
+        pipes.update();
+
+        bg.draw();
+        pipes.draw();
+        fg.draw();
+        modi.draw();
+        drawScore();
+
+        frames++;
+        requestAnimationFrame(loop);
+    }
+
+    
+    loop();
+
+</script>
+</body>
+</html>
