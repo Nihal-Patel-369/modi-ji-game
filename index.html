@@ -2,311 +2,419 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modi Flappy Adventure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Modi Ji ki Udaan</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
+        /* --- CSS STYLING --- */
         body {
             margin: 0;
             padding: 0;
+            background-color: #2c3e50;
+            font-family: 'Press Start 2P', cursive; /* गेमिंग फॉन्ट */
+            overflow: hidden; /* मोबाइल पर स्क्रॉल बंद */
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #333;
-            font-family: 'Arial', sans-serif;
-            overflow: hidden; /* स्क्रॉलिंग बंद करें */
+            touch-action: none; /* डबल टैप ज़ूम बंद */
+        }
+
+        /* गेम कंटेनर - यह स्क्रीन के हिसाब से एडजस्ट होगा */
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            max-width: 480px; /* PC पर ज्यादा चौड़ा न हो */
+            height: 100vh;
+            max-height: 800px;
+            background-color: #70c5ce;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            overflow: hidden;
         }
 
         canvas {
-            border: 2px solid #000;
-            box-shadow: 0px 0px 20px rgba(0,0,0,0.5);
-            background-color: #70c5ce; /* आकाश का रंग */
+            display: block;
+            width: 100%;
+            height: 100%;
         }
+
+        /* --- UI OVERLAYS (स्कोर, स्टार्ट बटन आदि) --- */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* ताकि क्लिक कैनवास पर जाए */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        /* स्कोर बोर्ड */
+        #scoreBoard {
+            position: absolute;
+            top: 10%;
+            width: 100%;
+            text-align: center;
+            font-size: 40px;
+            color: white;
+            text-shadow: 3px 3px 0 #000;
+            z-index: 10;
+        }
+
+        /* स्टार्ट स्क्रीन और गेम ओवर स्क्रीन */
+        #startScreen, #gameOverScreen {
+            background: rgba(0, 0, 0, 0.7);
+            pointer-events: auto; /* बटन क्लिक करने के लिए */
+            border-radius: 15px;
+            padding: 20px;
+            width: 80%;
+            border: 4px solid #fff;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        h1 {
+            color: #f1c40f;
+            font-size: 24px;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px #000;
+        }
+
+        p {
+            color: #fff;
+            font-size: 12px;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: #e74c3c;
+            color: white;
+            border: 2px solid #c0392b;
+            padding: 15px 30px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 4px #992d22;
+            transition: transform 0.1s;
+        }
+
+        button:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 #992d22;
+        }
+
+        /* फुटर क्रेडिट */
+        .footer {
+            position: absolute;
+            bottom: 10px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.5);
+        }
+
     </style>
 </head>
 <body>
 
-<canvas id="gameCanvas"></canvas>
+    <img id="modiImg" src="modi.png" style="display:none;">
+    <audio id="bgMusic" src="bg_music.mp3" loop></audio>
+    <audio id="dieSound" src="gameover.mp3"></audio>
 
-<img id="modiFaceBtn" src="modi.png" style="display:none;">
-<audio id="bgMusic" src="bg_music.mp3" loop preload="auto"></audio>
-<audio id="gameOverSound" src="gameover.mp3" preload="auto"></audio>
+    <div id="gameContainer">
+        <canvas id="canvas"></canvas>
+
+        <div id="scoreBoard">0</div>
+
+        <div id="startScreen" class="overlay">
+            <h1>MODI JI<br>ADVENTURE</h1>
+            <p>मित्रों! उड़ने के लिए<br>Tap करें या Space दबाएं</p>
+            <button id="startBtn">START GAME</button>
+            <div class="footer">Made for Fun</div>
+        </div>
+
+        <div id="gameOverScreen" class="overlay hidden">
+            <h1 style="color: #e74c3c;">GAME OVER</h1>
+            <p>आपका स्कोर: <span id="finalScore">0</span><br>बेस्ट स्कोर: <span id="bestScore">0</span></p>
+            <button id="restartBtn">RETRY</button>
+        </div>
+    </div>
 
 <script>
-    // --- सेटअप ---
-    const canvas = document.getElementById('gameCanvas');
+    // --- SETUP ---
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-
-    // कैनवास का साइज सेट करें (मोबाइल रिस्पॉन्सिव)
-    canvas.width = 320;
-    canvas.height = 480;
-
-    // --- एसेट्स लोड करना (Assets Loading) ---
-    const modiImg = document.getElementById('modiFaceBtn');
-    const bgMusic = document.getElementById('bgMusic');
-    const gameOverSound = document.getElementById('gameOverSound');
     
-    // वॉल्यूम सेटिंग्स (वैकल्पिक)
-    bgMusic.volume = 0.5; 
-    gameOverSound.volume = 1.0;
+    // UI Elements
+    const scoreElement = document.getElementById('scoreBoard');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScoreEl = document.getElementById('finalScore');
+    const bestScoreEl = document.getElementById('bestScore');
+    const startBtn = document.getElementById('startBtn');
+    const restartBtn = document.getElementById('restartBtn');
 
-    // --- गेम वैरिएबल्स (Game Variables) ---
-    let frames = 0;
+    // Audio & Image
+    const modiSprite = document.getElementById('modiImg');
+    const bgMusic = document.getElementById('bgMusic');
+    const dieSound = document.getElementById('dieSound');
+
+    // गेम स्टेट
+    let gamePlaying = false;
+    let speed = 2.5; // गेम की स्पीड
     let score = 0;
-    let highScore = localStorage.getItem('modiHighScore') || 0;
-    let gameState = {
-        current: 0,
-        getReady: 0,
-        game: 1,
-        over: 2
-    };
+    let animationId;
+    let savedHighScore = localStorage.getItem('modiGameHighScore') || 0;
 
-    // --- मोदी जी ऑब्जेक्ट (The Player) ---
-    const modi = {
+    // Responsive Canvas
+    // हम इंटरनल रेजोल्यूशन फिक्स रखेंगे ताकि गेमप्ले हर डिवाइस पर एक जैसा रहे
+    const cWidth = 320; 
+    const cHeight = 480;
+    canvas.width = cWidth;
+    canvas.height = cHeight;
+
+    // --- OBJECTS ---
+    
+    // मोदी जी (प्लेयर)
+    const bird = {
         x: 50,
         y: 150,
-        width: 34,  // इमेज के हिसाब से एडजस्ट करें
-        height: 24, // इमेज के हिसाब से एडजस्ट करें
+        w: 34,
+        h: 24,
+        dy: 0,
         gravity: 0.25,
         jump: 4.6,
-        velocity: 0,
-        radius: 12, // कोलिजन के लिए गोल आकार
-
+        
         draw: function() {
-            // अगर इमेज लोड नहीं हुई है तो एक लाल डिब्बा बनाएँ
-            if (modiImg.complete && modiImg.naturalHeight !== 0) {
-                 ctx.drawImage(modiImg, this.x, this.y, this.width, this.height);
+            if (modiSprite.complete && modiSprite.naturalHeight !== 0) {
+                // थोड़ा रोटेशन इफेक्ट जोड़ने के लिए
+                ctx.save();
+                ctx.translate(this.x + this.w/2, this.y + this.h/2);
+                let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.dy * 0.1)));
+                ctx.rotate(rotation);
+                ctx.drawImage(modiSprite, -this.w/2, -this.h/2, this.w, this.h);
+                ctx.restore();
             } else {
-                ctx.fillStyle = "red";
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                // अगर इमेज न हो तो पीला बॉक्स
+                ctx.fillStyle = "yellow";
+                ctx.fillRect(this.x, this.y, this.w, this.h);
             }
-           
         },
-
+        
         update: function() {
-            // अगर गेम 'getReady' स्टेट में है तो कुछ न करें
-            if (gameState.current !== gameState.game) return;
-
-            this.velocity += this.gravity;
-            this.y += this.velocity;
+            this.dy += this.gravity;
+            this.y += this.dy;
 
             // जमीन से टकराना
-            if (this.y + this.height >= canvas.height - fg.height) {
-                this.y = canvas.height - fg.height - this.height;
-                endGame();
+            if (this.y + this.h >= cHeight - fg.h) {
+                this.y = cHeight - fg.h - this.h;
+                gameOver();
             }
-            // छत से टकराना
-            if (this.y < 0) {
-                this.y = 0;
-                this.velocity = 0;
-            }
+            // छत
+            if(this.y < 0) this.y = 0;
         },
-
+        
         flap: function() {
-            this.velocity = -this.jump;
+            this.dy = -this.jump;
         }
     };
 
-    // --- बैकग्राउंड और जमीन (Background & Foreground) ---
-    const bg = {
-        draw: function() {
-            ctx.fillStyle = "#70c5ce";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-    };
-
-    const fg = {
-        height: 112,
-        x: 0,
-        draw: function() {
-            ctx.fillStyle = "#ded895";
-            ctx.fillRect(this.x, canvas.height - this.height, canvas.width, this.height);
-            ctx.fillRect(this.x + canvas.width, canvas.height - this.height, canvas.width, this.height);
-            
-            // ऊपर घास की हरी पट्टी
-            ctx.fillStyle = "#73bf2e";
-             ctx.fillRect(this.x, canvas.height - this.height, canvas.width, 12);
-             ctx.fillRect(this.x + canvas.width, canvas.height - this.height, canvas.width, 12);
-        },
-        update: function() {
-            this.x = (this.x - 2) % (canvas.width);
-        }
-    };
-
-    // --- पाइप्स (Pipes) ---
+    // पाइप्स
     const pipes = {
-        position: [],
-        width: 52,
-        gap: 120, // ऊपर और नीचे के पाइप के बीच की जगह
-        minHeight: 50,
-        maxY: canvas.height - fg.height - 120 - 50, // गणित पाइप की पोजीशन के लिए
-        dx: 2, // पाइप की स्पीड
-
+        items: [],
+        w: 52,
+        gap: 110, // पाइप्स के बीच की जगह
+        dx: 2,
+        
         draw: function() {
-            for(let i = 0; i < this.position.length; i++) {
-                let p = this.position[i];
-                let topY = p.y;
-                let bottomY = p.y + this.gap;
-
-                ctx.fillStyle = "#73bf2e"; // पाइप का रंग हरा
+            for(let i=0; i<this.items.length; i++) {
+                let p = this.items[i];
                 
-                // ऊपर वाला पाइप
-                ctx.fillRect(p.x, 0, this.width, topY);
-                ctx.strokeStyle = "#558c22";
+                ctx.fillStyle = "#2ecc71"; // पाइप का रंग
+                ctx.strokeStyle = "#27ae60"; // पाइप का बॉर्डर
                 ctx.lineWidth = 2;
-                ctx.strokeRect(p.x, 0, this.width, topY);
+
+                // ऊपर वाला पाइप
+                ctx.fillRect(p.x, 0, this.w, p.top);
+                ctx.strokeRect(p.x, 0, this.w, p.top);
                 
                 // नीचे वाला पाइप
-                ctx.fillRect(p.x, bottomY, this.width, canvas.height - bottomY - fg.height);
-                ctx.strokeRect(p.x, bottomY, this.width, canvas.height - bottomY - fg.height);
+                let bottomY = p.top + this.gap;
+                ctx.fillRect(p.x, bottomY, this.w, cHeight - bottomY - fg.h);
+                ctx.strokeRect(p.x, bottomY, this.w, cHeight - bottomY - fg.h);
             }
         },
-
+        
         update: function() {
-            if (gameState.current !== gameState.game) return;
-
-            // हर 150 फ्रेम पर नया पाइप जोड़ें
-            if (frames % 150 === 0) {
-                this.position.push({
-                    x: canvas.width,
-                    y: Math.random() * this.maxY + this.minHeight
+            // हर 110 फ्रेम पर नया पाइप
+            if(frames % 110 === 0) {
+                let _maxY = cHeight - fg.h - this.gap - 20; // 20px मार्जिन
+                let _top = Math.random() * (_maxY - 20) + 20;
+                this.items.push({
+                    x: cWidth,
+                    top: _top,
+                    passed: false
                 });
             }
 
-            for(let i = 0; i < this.position.length; i++) {
-                let p = this.position[i];
-                
-                // पाइप को बाईं ओर ले जाएँ
+            for(let i=0; i<this.items.length; i++) {
+                let p = this.items[i];
                 p.x -= this.dx;
-                
-                let bottomPipeYPos = p.y + this.gap;
 
-                // --- टकराव का पता लगाना (Collision Detection) ---
-                // ऊपर वाला पाइप
-                if (modi.x + modi.width > p.x && modi.x < p.x + this.width && modi.y < p.y) {
-                    endGame();
-                }
-                // नीचे वाला पाइप
-                if (modi.x + modi.width > p.x && modi.x < p.x + this.width && modi.y + modi.height > bottomPipeYPos) {
-                    endGame();
+                // कोलिजन (Collision) चेक
+                // 1. पाइप के अंदर क्षैतिज (Horizontal) रूप से
+                if(bird.x + bird.w > p.x && bird.x < p.x + this.w) {
+                    // 2. वर्टिकल (Vertical) रूप से (गैप में नहीं है)
+                    if(bird.y < p.top || bird.y + bird.h > p.top + this.gap) {
+                        gameOver();
+                    }
                 }
 
-                // अगर पाइप स्क्रीन से बाहर चला गया, तो उसे हटा दें
-                if (p.x + this.width <= 0) {
-                    this.position.shift();
-                    
+                // स्कोर अपडेट
+                if(p.x + this.w < bird.x && !p.passed) {
                     score++;
-                    highScore = Math.max(score, highScore);
-                    localStorage.setItem('modiHighScore', highScore);
-                    i--; 
+                    scoreElement.innerText = score;
+                    p.passed = true;
+                }
+
+                // पाइप स्क्रीन से बाहर गया तो हटाओ
+                if(p.x + this.w <= 0) {
+                    this.items.shift();
+                    i--;
                 }
             }
-        },
-        reset: function() {
-            this.position = [];
         }
     };
 
-    function drawScore() {
-        ctx.fillStyle = "#FFF";
-        ctx.strokeStyle = "#000";
-        
-        if (gameState.current == gameState.game) {
-            ctx.lineWidth = 2;
-            ctx.font = "35px Impact";
-            ctx.fillText(score, canvas.width/2 - 10, 50);
-            ctx.strokeText(score, canvas.width/2 - 10, 50);
-        } else if (gameState.current == gameState.over) {
-             // गेम ओवर स्क्रीन
-             ctx.fillStyle = "rgba(0,0,0,0.5)";
-             ctx.fillRect(0,0,canvas.width, canvas.height);
-
-             ctx.fillStyle = "#FFF";
-             ctx.strokeStyle = "#000";
-             ctx.lineWidth = 2;
-             ctx.font = "40px Impact";
-             ctx.fillText("GAME OVER", 70, 150);
-             ctx.strokeText("GAME OVER", 70, 150);
-
-             ctx.font = "25px Impact";
-             ctx.fillText("Score: " + score, 110, 220);
-             ctx.fillText("Best: " + highScore, 115, 260);
-             
-             ctx.font = "20px Arial";
-             ctx.fillText("Tap to Restart", 100, 320);
-        } else if (gameState.current == gameState.getReady) {
-             ctx.fillStyle = "#FFF";
-             ctx.strokeStyle = "#000";
-             ctx.lineWidth = 2;
-             ctx.font = "30px Impact";
-             ctx.fillText("TAP TO START", 85, 200);
-             ctx.strokeText("TAP TO START", 85, 200);
-             ctx.font = "20px Arial";
-             ctx.fillText("Mitron, uddne ke liye tap karein!", 30, 250);
+    // जमीन (Foreground)
+    const fg = {
+        h: 80,
+        x: 0,
+        draw: function() {
+            ctx.fillStyle = "#e67e22"; // मिटटी का रंग
+            ctx.fillRect(this.x, cHeight - this.h, cWidth, this.h);
+            ctx.fillRect(this.x + cWidth, cHeight - this.h, cWidth, this.h);
+            
+            // घास
+            ctx.fillStyle = "#27ae60";
+            ctx.fillRect(this.x, cHeight - this.h, cWidth, 15);
+            ctx.fillRect(this.x + cWidth, cHeight - this.h, cWidth, 15);
+        },
+        update: function() {
+            this.x = (this.x - 2) % (cWidth);
         }
-    }
+    };
 
-
-    
-    function endGame() {
-        gameState.current = gameState.over;
-        bgMusic.pause();
-        bgMusic.currentTime = 0;
-        gameOverSound.play();
-    }
-
-    function resetGame() {
-        modi.y = 150;
-        modi.velocity = 0;
-        pipes.reset();
-        score = 0;
-        gameState.current = gameState.getReady;
-    }
-
-    function handleInput(e) {
-        if (bgMusic.paused && gameState.current === gameState.game) {
-             bgMusic.play().catch(e => console.log("Audio play failed:", e));
-        }
-
-        switch(gameState.current) {
-            case gameState.getReady:
-                gameState.current = gameState.game;
-                bgMusic.play(); // गेम शुरू होते ही गाना बजाएं
-                modi.flap();
-                break;
-            case gameState.game:
-                modi.flap();
-                break;
-            case gameState.over:
-                resetGame();
-                break;
-        }
-    }
-
-    canvas.addEventListener("click", handleInput);
-    window.addEventListener("keydown", function(e){
-        if(e.code === 'Space') handleInput(e);
-    });
-
-
-    
+    // --- GAME LOOP ---
+    let frames = 0;
     function loop() {
-        modi.update();
-        fg.update();
-        pipes.update();
+        if(!gamePlaying) return;
 
-        bg.draw();
+        // क्लियर स्क्रीन
+        ctx.fillStyle = "#70c5ce"; // आकाश
+        ctx.fillRect(0, 0, cWidth, cHeight);
+
+        // अपडेट और ड्रॉ
+        pipes.update();
         pipes.draw();
+        
+        fg.update();
         fg.draw();
-        modi.draw();
-        drawScore();
+        
+        bird.update();
+        bird.draw();
 
         frames++;
-        requestAnimationFrame(loop);
+        animationId = requestAnimationFrame(loop);
     }
 
+    // --- CONTROLS ---
+    function initGame() {
+        // रीसेट
+        bird.y = 150;
+        bird.dy = 0;
+        pipes.items = [];
+        score = 0;
+        frames = 0;
+        scoreElement.innerText = 0;
+        
+        gamePlaying = true;
+        startScreen.classList.add('hidden');
+        gameOverScreen.classList.add('hidden');
+        
+        // ऑडियो शुरू
+        bgMusic.currentTime = 0;
+        bgMusic.play().catch(e => console.log("Audio Error: ", e));
+        
+        loop();
+    }
+
+    function gameOver() {
+        gamePlaying = false;
+        cancelAnimationFrame(animationId);
+        
+        // ऑडियो
+        bgMusic.pause();
+        dieSound.play();
+
+        // हाई स्कोर लॉजिक
+        if(score > savedHighScore) {
+            savedHighScore = score;
+            localStorage.setItem('modiGameHighScore', savedHighScore);
+        }
+
+        // UI दिखाएं
+        finalScoreEl.innerText = score;
+        bestScoreEl.innerText = savedHighScore;
+        gameOverScreen.classList.remove('hidden');
+    }
+
+    // इनपुट हैंडलर (Input Handler)
+    function inputAction(e) {
+        // अगर बटन पर क्लिक किया है तो गेम एक्शन न लें (Event Bubbling रोकें)
+        if(e.target.tagName === 'BUTTON') return;
+
+        if(gamePlaying) {
+            bird.flap();
+        }
+    }
+
+    // इवेंट लिसनर्स (Mobile + PC)
+    startBtn.addEventListener('click', initGame);
+    restartBtn.addEventListener('click', initGame);
     
-    loop();
+    // स्क्रीन टैप या माउस क्लिक
+    window.addEventListener('mousedown', inputAction);
+    window.addEventListener('touchstart', (e) => {
+       // टच को डिफॉल्ट स्क्रॉल आदि से रोकें
+       // e.preventDefault(); 
+       inputAction(e);
+    }, {passive: false});
+
+    // कीबोर्ड (स्पेसबार)
+    window.addEventListener('keydown', (e) => {
+        if(e.code === 'Space') {
+            if(!gamePlaying && !startScreen.classList.contains('hidden')) {
+                initGame();
+            } else if(!gamePlaying && !gameOverScreen.classList.contains('hidden')) {
+                initGame();
+            } else {
+                inputAction(e);
+            }
+        }
+    });
+
+    // पहली बार लोड होने पर रेंडर
+    ctx.fillStyle = "#70c5ce";
+    ctx.fillRect(0, 0, cWidth, cHeight);
+    fg.draw();
+    bird.draw();
 
 </script>
 </body>
