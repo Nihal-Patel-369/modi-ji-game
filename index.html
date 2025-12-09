@@ -28,7 +28,7 @@
             margin: 0;
             padding: 0;
             background-color: #2c3e50;
-            font-family: 'Press Start 2P', cursive; /* गेमिंग फॉन्ट */
+            font-family: 'Press Start 2P', cursive;
             overflow: hidden; 
             display: flex;
             justify-content: center;
@@ -66,7 +66,7 @@
             justify-content: center;
             align-items: center;
             text-align: center;
-            z-index: 50; /* ओवरले को ऊपर रखें */
+            z-index: 50; 
         }
 
         #scoreBoard {
@@ -130,7 +130,7 @@
             bottom: 10px;
             font-size: 10px;
             color: rgba(255,255,255,0.5);
-            pointer-events: auto; /* शेयर बटन पर क्लिक हो सके */
+            pointer-events: auto; 
         }
         
         .social-share {
@@ -209,11 +209,18 @@
     const cHeight = 480;
     canvas.width = cWidth;
     canvas.height = cHeight;
-    const GAME_URL = window.location.href; // Netlify का लाइव URL
+    const GAME_URL = window.location.href; 
 
-    // --- OBJECTS (Bird, Pipes, FG - Logic is the same as previous) ---
+    // --- OBJECTS ---
+    
+    // मोदी जी (प्लेयर)
     const bird = {
-        x: 50, y: 150, w: 34, h: 24, dy: 0, gravity: 0.25, jump: 4.6,
+        x: 50, y: 150, w: 34, h: 24, dy: 0, 
+        // 👇 DIFFICULTY ADJUSTMENT: Easier Gravity and Jump
+        gravity: 0.18, // ⭐️ कम किया (was 0.25)
+        jump: 5.0,     // ⭐️ बढ़ाया (was 4.6)
+        // 👆 DIFFICULTY ADJUSTMENT
+        
         draw: function() {
             if (modiSprite.complete && modiSprite.naturalHeight !== 0) {
                 ctx.save();
@@ -239,8 +246,14 @@
         flap: function() { this.dy = -this.jump; }
     };
 
+    // पाइप्स
     const pipes = {
-        items: [], w: 52, gap: 110, dx: 2,
+        items: [], w: 52, 
+        // 👇 DIFFICULTY ADJUSTMENT: Bigger Gap and Slower Speed
+        gap: 130, // ⭐️ बढ़ाया (was 110)
+        dx: 1.8,  // ⭐️ कम किया (was 2)
+        // 👆 DIFFICULTY ADJUSTMENT
+        
         draw: function() {
             for(let i=0; i<this.items.length; i++) {
                 let p = this.items[i];
@@ -255,11 +268,14 @@
             }
         },
         update: function() {
-            if(frames % 110 === 0) {
+            // 👇 DIFFICULTY ADJUSTMENT: Pipes spawn less frequently
+            if(frames % 130 === 0) { // ⭐️ बढ़ाया (was 110)
                 let _maxY = cHeight - fg.h - this.gap - 20; 
                 let _top = Math.random() * (_maxY - 20) + 20;
                 this.items.push({ x: cWidth, top: _top, passed: false });
             }
+            // 👆 DIFFICULTY ADJUSTMENT
+            
             for(let i=0; i<this.items.length; i++) {
                 let p = this.items[i];
                 p.x -= this.dx;
@@ -368,7 +384,6 @@
         } else if(gamePlaying) {
             bird.flap();
         } else if(!gamePlaying && !gameOverScreen.classList.contains('hidden')) {
-            // Game Over screen पर क्लिक करने पर रीस्टार्ट
             initGame();
         }
     }
@@ -380,7 +395,7 @@
     window.addEventListener('mousedown', inputAction);
     window.addEventListener('touchstart', (e) => {
        inputAction(e);
-    }, {passive: true}); // passive: true for faster mobile scrolling/tapping
+    }, {passive: true}); 
 
     window.addEventListener('keydown', (e) => {
         if(e.code === 'Space') {
